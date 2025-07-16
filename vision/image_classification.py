@@ -13,7 +13,7 @@ import platform
 import psutil
 import sys
 from datetime import datetime
-from tqdm import tqdm
+from sklearn.metrics import classification_report, confusion_matrix, f1_score, recall_score
 
 
 class ImageClassifier:
@@ -291,8 +291,8 @@ class ImageClassifier:
         logger.info(f"Starting training for {num_epochs} epochs")
         logger.info("=" * 80)
 
-        # Training loop with tqdm for epochs
-        for epoch in tqdm(range(num_epochs), desc="Epochs", position=0, leave=True, ncols=100):
+        # Training loop
+        for epoch in range(num_epochs):
             # Initialize metrics for this epoch
             running_loss = 0.0
             correct = 0
@@ -357,8 +357,10 @@ class ImageClassifier:
 
         This method calculates the loss and accuracy of the model on the test dataset.
         It runs the model in evaluation mode to disable dropout and batch normalization.
+        It also calculates and logs additional metrics: classification report by class,
+        confusion matrix, F1 score, and recall.
 
-        :return: Dictionary containing test loss and accuracy
+        :return: Dictionary containing test metrics (loss, accuracy, f1_score, recall)
         :rtype: dict
         """
         # Set model to evaluation mode
@@ -368,6 +370,10 @@ class ImageClassifier:
         test_loss = 0.0
         correct = 0
         total = 0
+
+        # Lists to store all predictions and targets for detailed metrics
+        all_predictions = []
+        all_targets = []
 
         # Get logger
         logger = logging.getLogger(__name__)
@@ -394,17 +400,59 @@ class ImageClassifier:
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
+                # Store predictions and targets for detailed metrics
+                all_predictions.extend(predicted.cpu().numpy())
+                all_targets.extend(targets.cpu().numpy())
+
         # Calculate average loss and accuracy
         avg_test_loss = test_loss / len(self.test_loader)
         test_accuracy = 100.0 * correct / total
 
+        # Convert lists to numpy arrays
+        all_predictions = np.array(all_predictions)
+        all_targets = np.array(all_targets)
+
+        # Calculate additional metrics
+        # Classification report by class
+        class_report = classification_report(all_targets, all_predictions, 
+                                            target_names=self.test_dataset.classes,
+                                            output_dict=False)
+
+        # Confusion matrix
+        conf_matrix = confusion_matrix(all_targets, all_predictions)
+
+        # F1 score (macro average)
+        f1 = f1_score(all_targets, all_predictions, average='macro')
+
+        # Recall score (macro average)
+        recall = recall_score(all_targets, all_predictions, average='macro')
+
         # Log test metrics
         logger.info(f"Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
+        logger.info(f"F1 Score (macro): {f1:.4f}, Recall (macro): {recall:.4f}")
+
+        # Log classification report
+        logger.info("\nClassification Report by Class:")
+        logger.info(f"\n{class_report}")
+
+        # Log confusion matrix with better formatting
+        logger.info("\nConfusion Matrix:")
+        # Add header with class indices
+        header = "    " + " ".join(f"{i:4d}" for i in range(len(self.test_dataset.classes)))
+        logger.info(header)
+        # Log each row with class label
+        for i, (row, class_name) in enumerate(zip(conf_matrix, self.test_dataset.classes)):
+            formatted_row = " ".join(f"{cell:4d}" for cell in row)
+            logger.info(f"{i:2d} {class_name[:5]:5s} {formatted_row}")
 
         # Return metrics
         return {
             'test_loss': avg_test_loss,
-            'test_accuracy': test_accuracy
+            'test_accuracy': test_accuracy,
+            'f1_score': f1,
+            'recall': recall,
+            'classification_report': class_report,
+            'confusion_matrix': conf_matrix
         }
 
     def test_performance(self):

@@ -5,6 +5,7 @@ import torch.optim as optim
 import torchvision.models as models
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
+from torch.fx.experimental.graph_gradual_typechecker import transpose_inference_rule
 from torch.utils.data import DataLoader
 import numpy as np
 import logging
@@ -29,6 +30,7 @@ class ImageClassifier:
         self.device = self.config['device']
         self.seed = self.config['seed']
         self.num_workers = self.config['num_workers']
+        self.augmented = self.config['data']['augmented']
 
         self.initialize_backend()
         self.prepare_dataset()
@@ -75,35 +77,24 @@ class ImageClassifier:
         self.device = torch.device(self.device if torch.cuda.is_available() and self.device == 'cuda' else 'cpu')
         self.model = self.model.to(self.device)
 
-
-    def prepare_dataset(self) -> None:
+    def augmentation_transform(self, image_size, mean, std):
         """
-        Prepares the CIFAR-10 dataset for processing. This method downloads the dataset,
-        applies transformations, and creates dataloaders for training and testing.
 
-        The dataset is downloaded to '../data/cifar_10' directory.
-        Transformations are applied based on the configuration in config.json.
-
-        :return: None
-        :rtype: None
+        :param image_size:
+        :param mean:
+        :param std:
+        :return:
         """
-        # Create directory for dataset
-        data_dir = os.path.join('..', 'data', 'cifar_10')
-        os.makedirs(data_dir, exist_ok=True)
 
-        # Get image size, mean, and std from config
-        image_size = tuple(self.data_config['image_size'])
-        mean = tuple(self.data_config['mean'])
-        std = tuple(self.data_config['std'])
-
-        # Define transformations for training data with augmentation
-        train_transform = transforms.Compose([
+        transform = transforms.Compose([
             transforms.Resize(image_size),
             # Add random crop if enabled in config
-            transforms.RandomCrop(image_size, padding=4) if self.augmentation_config['random_crop'] else transforms.Lambda(lambda x: x),
+            transforms.RandomCrop(image_size, padding=4) if self.augmentation_config[
+                'random_crop'] else transforms.Lambda(lambda x: x),
             transforms.RandomHorizontalFlip(p=0.5 if self.augmentation_config['horizontal_flip'] else 0),
             transforms.RandomVerticalFlip(p=0.5 if self.augmentation_config['vertical_flip'] else 0),
-            transforms.RandomRotation(self.augmentation_config['random_rotation'] if self.augmentation_config['random_rotation'] else 0),
+            transforms.RandomRotation(
+                self.augmentation_config['random_rotation'] if self.augmentation_config['random_rotation'] else 0),
             transforms.ColorJitter(
                 brightness=self.augmentation_config['color_jitter']['brightness'],
                 contrast=self.augmentation_config['color_jitter']['contrast'],
@@ -114,14 +105,26 @@ class ImageClassifier:
             transforms.Normalize(mean, std)
         ])
 
-        # Define transformations for testing data (no augmentation)
-        test_transform = transforms.Compose([
+        return transform
+
+    def basic_transform(self, image_size, mean, std):
+        """
+
+        :param image_size:
+        :param mean:
+        :param std:
+        :return:
+        """
+        transform = transforms.Compose([
             transforms.Resize(image_size),
             transforms.ToTensor(),
             transforms.Normalize(mean, std)
         ])
 
-        # Download and load the CIFAR-10 dataset
+        return transform
+
+    def load_data(self, data_dir, train_transform, test_transform):
+
         self.train_dataset = datasets.CIFAR10(
             root=data_dir,
             train=True,
@@ -152,6 +155,38 @@ class ImageClassifier:
             num_workers=self.num_workers,
             pin_memory=True if self.device == 'cuda' else False
         )
+
+    def prepare_dataset(self) -> None:
+        """
+        Prepares the CIFAR-10 dataset for processing. This method downloads the dataset,
+        applies transformations, and creates dataloaders for training and testing.
+
+        The dataset is downloaded to '../data/cifar_10' directory.
+        Transformations are applied based on the configuration in config.json.
+
+        :return: None
+        :rtype: None
+        """
+        # Create directory for dataset
+        data_dir = os.path.join('..', 'data', 'cifar_10')
+        os.makedirs(data_dir, exist_ok=True)
+
+        # Get image size, mean, and std from config
+        image_size = tuple(self.data_config['image_size'])
+        mean = tuple(self.data_config['mean'])
+        std = tuple(self.data_config['std'])
+
+        # Define transformations for training data
+        if self.augmented:
+            train_transform = self.augmentation_transform(image_size, mean, std)
+        else:
+            train_transform = self.basic_transform(image_size, mean, std)
+
+        # Define transformations for testing data (no augmentation)
+        test_transform = self.basic_transform(image_size, mean, std)
+
+        # Download and load the CIFAR-10 dataset
+        self.load_data(data_dir, train_transform, test_transform)
 
     def log_training_info(self) -> None:
         """

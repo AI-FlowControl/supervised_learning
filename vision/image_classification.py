@@ -15,6 +15,7 @@ import psutil
 import sys
 from datetime import datetime
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, recall_score
+from tqdm import tqdm
 
 
 class ImageClassifier:
@@ -333,8 +334,8 @@ class ImageClassifier:
             correct = 0
             total = 0
 
-            # Iterate over batches (without tqdm)
-            for inputs, targets in self.train_loader:
+            # Iterate over batches with tqdm
+            for inputs, targets in tqdm(self.train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", leave=False, colour="white"):
                 # Move data to device
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
 
@@ -418,8 +419,8 @@ class ImageClassifier:
 
         # Disable gradient calculation for evaluation
         with torch.no_grad():
-            # Iterate over test data (without tqdm)
-            for inputs, targets in self.test_loader:
+            # Iterate over test data with tqdm
+            for inputs, targets in tqdm(self.test_loader, desc="Evaluating", leave=False, colour="white"):
                 # Move data to device
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
 

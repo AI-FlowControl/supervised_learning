@@ -14,7 +14,6 @@ import platform
 import psutil
 import sys
 from datetime import datetime
-from sklearn.metrics import classification_report, confusion_matrix, f1_score, recall_score
 from tqdm import tqdm
 
 
@@ -448,20 +447,7 @@ class ImageClassifier:
         all_predictions = np.array(all_predictions)
         all_targets = np.array(all_targets)
 
-        # Calculate additional metrics
-        # Classification report by class
-        class_report = classification_report(all_targets, all_predictions, 
-                                            target_names=self.test_dataset.classes,
-                                            output_dict=False)
 
-        # Confusion matrix
-        conf_matrix = confusion_matrix(all_targets, all_predictions)
-
-        # F1 score (macro average)
-        f1 = f1_score(all_targets, all_predictions, average='macro')
-
-        # Recall score (macro average)
-        recall = recall_score(all_targets, all_predictions, average='macro')
 
         # Log test metrics
         logger.info(f"Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")

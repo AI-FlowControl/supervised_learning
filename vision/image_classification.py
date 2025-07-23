@@ -451,11 +451,10 @@ class ImageClassifier:
 
         # Log test metrics
         logger.info(f"Test Loss: {avg_test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
-        logger.info(f"F1 Score (macro): {f1:.4f}, Recall (macro): {recall:.4f}")
+
 
         # Log classification report
         logger.info("\nClassification Report by Class:")
-        logger.info(f"\n{class_report}")
 
         # Log confusion matrix with better formatting
         logger.info("\nConfusion Matrix:")
@@ -463,19 +462,8 @@ class ImageClassifier:
         header = "    " + " ".join(f"{i:4d}" for i in range(len(self.test_dataset.classes)))
         logger.info(header)
         # Log each row with class label
-        for i, (row, class_name) in enumerate(zip(conf_matrix, self.test_dataset.classes)):
-            formatted_row = " ".join(f"{cell:4d}" for cell in row)
-            logger.info(f"{i:2d} {class_name[:5]:5s} {formatted_row}")
 
-        # Return metrics
-        return {
-            'test_loss': avg_test_loss,
-            'test_accuracy': test_accuracy,
-            'f1_score': f1,
-            'recall': recall,
-            'classification_report': class_report,
-            'confusion_matrix': conf_matrix
-        }
+
 
     def test_performance(self):
         pass

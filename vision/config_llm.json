@@ -1,0 +1,38 @@
+{
+    "model": {
+        "name": "gemma3:vision",
+        "type": "vision_llm",
+        "max_length": 512,
+        "temperature": 0.7,
+        "top_p": 0.9
+    },
+    "training": {
+        "batch_size": 1,
+        "learning_rate": 1e-5,
+        "num_epochs": 10,
+        "optimizer": "adamw",
+        "weight_decay": 0.01,
+        "warmup_steps": 100
+    },
+    "data": {
+        "image_size": [224, 224],
+        "max_images": 10,
+        "supported_formats": ["jpg", "jpeg", "png", "bmp"],
+        "preprocessing": {
+            "normalize": true,
+            "resize": true,
+            "augment": false
+        }
+    },
+    "system": {
+        "device": "cpu",
+        "num_workers": 4,
+        "seed": 42,
+        "log_level": "INFO"
+    },
+    "ollama": {
+        "host": "localhost",
+        "port": 11434,
+        "timeout": 30
+    }
+} 

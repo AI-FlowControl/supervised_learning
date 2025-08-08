@@ -42,19 +42,19 @@ class LLMClassifier:
         try:
             # Try to list models to see if gemma3:vision exists
             models = self.client.list()
-            model_exists = any('gpt-oss:20b' in model['name'] for model in models['models'])
+            model_exists = any('gemma3:27b' in model['name'] for model in models['models'])
             
             if model_exists:
-                print("gpt-oss:20b latest model already downloaded, using existing model.")
-                self.model = 'gpt-oss:20b'
+                print("gemma3:27b latest model already downloaded, using existing model.")
+                self.model = 'gemma3:27b'
             else:
-                print("Downloading gpt-oss:20b latest model...")
-                self.model = self.client.pull('gpt-oss:20b')
+                print("Downloading gemma3:27b latest model...")
+                self.model = self.client.pull('gemma3:27b')
                 
         except Exception as e:
             print(f"Error checking for existing model: {e}")
-            print("Downloading gpt-oss:20b latest model...")
-            self.model = self.client.pull('gpt-oss:20b')
+            print("Downloading gemma3:27b latest model...")
+            self.model = self.client.pull('gemma3:27b')
     
     def inference(self, image):
         # Convert numpy image (3, 32, 32) to PIL Image and then to base64
@@ -73,7 +73,7 @@ class LLMClassifier:
         }
 
         # Call Ollama chat
-        response = self.client.chat(model='gpt-oss:20b', messages=[message])
+        response = self.client.chat(model='gemma3:27b', messages=[message])
         
         # Extract label from response (expecting a single integer 0-9 in the reply)
         match = re.search(r'\b([0-9])\b', str(response.get('message', {}).get('content', '')))

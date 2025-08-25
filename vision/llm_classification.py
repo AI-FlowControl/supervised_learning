@@ -8,6 +8,7 @@ import base64
 import re
 import requests
 import os
+import matplotlib.pyplot as plt
 
 
 class LLMClassifier:
@@ -18,44 +19,55 @@ class LLMClassifier:
         self.configure_network()
         self.read_data()
         self.prompt = (
-            "You are given an image from the CIFAR-10 dataset. The possible labels are:\n"
-            "- 0: airplane\n"
-            "- 1: automobile\n"
-            "- 2: bird\n"
-            "- 3: cat\n"
-            "- 4: deer\n"
-            "- 5: dog\n"
-            "- 6: frog\n"
-            "- 7: horse\n"
-            "- 8: ship\n"
-            "- 9: truck\n\n"
-            "Your task is to analyze the image and assign the most appropriate label (from the list above) to the given picture."
-        )
-    
+            "You are an image classifier for the CIFAR-10 dataset. Your task is to analyze images and classify it into one of the ten provided categories.:\n"
+"- 0: airplane\n"
+"- 1: automobile\n"
+"- 2: bird\n"
+"- 3: cat\n"
+"- 4: deer\n"
+"- 5: dog\n"
+"- 6: frog\n"
+"- 7: horse\n"
+"- 8: ship\n"
+"- 9: truck\n"
 
-    
+"### Examples\n"
+"Image: a picture of a car\n"
+"Label: automobile\n"
+
+"Image: a picture of a bird\n"
+"Label: bird\n"
+
+"Image: a picture of a ship\n"
+"Label: ship\n"
+
+"### Your Turn\n"
+"Image: a picture of a truck\n"
+"Label:    \n"
+        )
+
     def configure_network(self):
         # Initialize Ollama client
         self.client = ollama.Client()
-        
+
         # Check if Gemma3 vision model is already downloaded
         try:
             # Try to list models to see if gemma3:vision exists
             models = self.client.list()
-            model_exists = any('llava:34b' in model['name'] for model in models['models'])
-            
+            model_exists = any('llava:latest' in model['name'] for model in models['models'])
+
             if model_exists:
-                print("llava:34b latest model already downloaded, using existing model.")
-                self.model = 'llava:34b'
+                print("llava latest model already downloaded, using existing model.")
+                self.model = 'llava:latest'
             else:
-                print("Downloading llava:34b latest model...")
-                self.model = self.client.pull('llava:34b')
-                
+                print("Downloading llava latest model...")
+                self.model = self.client.pull('llava:latest')
+
         except Exception as e:
             print(f"Error checking for existing model: {e}")
-            print("Downloading llava:34b latest model...")
-            self.model = self.client.pull('llava:34b')
-    
+            print("Downloading llava latest model...")
+            self.model = self.client.pull('llava:latest')
+
     def inference(self, image):
         # Convert numpy image (3, 32, 32) to PIL Image and then to base64
         img = np.transpose(image, (1, 2, 0))  # (32, 32, 3)
@@ -73,8 +85,8 @@ class LLMClassifier:
         }
 
         # Call Ollama chat
-        response = self.client.chat(model='gemma3:27b', messages=[message])
-        
+        response = self.client.chat(model='llava:latest', messages=[message])
+
         # Extract label from response (expecting a single integer 0-9 in the reply)
         match = re.search(r'\b([0-9])\b', str(response.get('message', {}).get('content', '')))
         if match:
@@ -82,7 +94,7 @@ class LLMClassifier:
         else:
             # If not found, return -1 or raise error
             return -1
-    
+
     def api_inference(self, image):
         """
         API-friendly inference method using Gemini API.
@@ -127,81 +139,84 @@ class LLMClassifier:
             return {"predicted_label": int(match.group(1))}
         else:
             return {"predicted_label": -1}
-    
-    
+
     def read_data(self):
         # Read one batch from CIFAR-10 dataset
         batch_file = '../data/cifar_10/cifar-10-batches-py/data_batch_1'
-        
+
         with open(batch_file, 'rb') as f:
             batch_data = pickle.load(f, encoding='bytes')
-        
+
         # Extract images and labels
         images = batch_data[b'data']
         labels = batch_data[b'labels']
-        
+
         # Reshape images to (N, 3, 32, 32) format
         images = images.reshape(-1, 3, 32, 32)
-        
+
         # Convert to numpy arrays
         self.images = np.array(images)
         self.labels = np.array(labels)
-        
+
         print(f"Loaded {len(self.images)} images with shape {self.images.shape}")
         print(f"Labels shape: {self.labels.shape}")
         print(f"Sample labels: {self.labels[:10]}")
-        
 
 
 def test_loop():
     # Create LLM classifier instance
     classifier = LLMClassifier()
-    
+
     # Test on a few sample images
     num_test_images = 200
     correct_cases = 0
-    
+    accuracies_per_batch = []
+
     print(f"Testing inference on {num_test_images} images...")
     print("=" * 50)
-    
+
     for i in range(num_test_images):
         # Get image and true label
         image = classifier.images[i]
         true_label = classifier.labels[i]
-        
+
         # Call inference to get predicted label
         predicted_label = classifier.inference(image)
-        
+
         # Count correct cases
         if predicted_label == true_label:
             correct_cases += 1
-        
+
+        # Track running accuracy after each batch (image treated as a batch here)
+        running_accuracy = correct_cases / (i + 1)
+        accuracies_per_batch.append(running_accuracy)
+
         # Print results
-        print(f"Image {i+1}:")
+        print(f"Image {i + 1}:")
         print(f"  True label: {true_label}")
         print(f"  Predicted label: {predicted_label}")
         print(f"  Correct: {'✓' if predicted_label == true_label else '✗'}")
         print("-" * 30)
-    
-    return correct_cases, num_test_images
+
+    return correct_cases, num_test_images, accuracies_per_batch
 
 
 def report(num_pictures, correct_cases):
     # Calculate accuracy
     accuracy = correct_cases / num_pictures if num_pictures > 0 else 0
-    
+
     print(f"Report:")
     print(f"Total pictures: {num_pictures}")
     print(f"Correct predictions: {correct_cases}")
-    print(f"Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
-    
+    print(f"Accuracy: {accuracy:.4f} ({accuracy * 100:.2f}%)")
+
     # For precision and recall, we need true positives, false positives, false negatives
     # Since we're doing multi-class classification, we'll calculate macro averages
     # This is a simplified version - in practice you'd need the full confusion matrix
-    
+
     print(f"Precision: {accuracy:.4f} (simplified - assuming balanced classes)")
     print(f"Recall: {accuracy:.4f} (simplified - assuming balanced classes)")
-    
+
     # Print a simple confusion matrix structure
     print(f"\nConfusion Matrix (simplified):")
     print(f"Predicted vs Actual:")
@@ -212,10 +227,35 @@ def report(num_pictures, correct_cases):
 
 def main():
     llm_classifier = LLMClassifier()
-    correct_cases, num_test_images = test_loop()
+    correct_cases, num_test_images, accuracies_per_batch = test_loop()
     report(num_test_images, correct_cases)
+    show_acc(accuracies_per_batch)
+
+
+def show_acc(accuracies_per_batch):
+    """
+    Plot the accuracy after each batch using matplotlib.
+
+    Args:
+        accuracies_per_batch: List[float] where each entry is the running
+            accuracy after processing the corresponding batch (index + 1).
+    """
+    if not accuracies_per_batch:
+        print("No accuracy data to plot.")
+        return
+
+    x_values = list(range(1, len(accuracies_per_batch) + 1))
+    y_values = [value * 100.0 for value in accuracies_per_batch]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(x_values, y_values, label="Accuracy per batch", color="tab:blue")
+    plt.xlabel("Batch")
+    plt.ylabel("Accuracy (%)")
+    plt.title("Running Accuracy After Each Batch")
+    plt.grid(True, linestyle=":", linewidth=0.5)
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == "__main__":
     main()
- 
